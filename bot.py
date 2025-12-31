@@ -19,7 +19,6 @@ from telegram.ext import (
     filters,
 )
 
-
 STORAGE_PATH = Path("data/events.json")
 DAILY_REMINDER_TIME = time(hour=9, minute=0)
 REMINDER_OFFSETS = [
@@ -114,6 +113,7 @@ def parse_datetime(raw: str) -> Optional[datetime]:
         try:
             parsed = datetime.strptime(cleaned, fmt)
             if fmt == "%Y-%m-%d":
+                # Default time for date-only input.
                 parsed = datetime.combine(parsed.date(), time(hour=9, minute=0))
             return parsed
         except ValueError:
@@ -146,12 +146,12 @@ def schedule_event_jobs(application: Application, user_id: int, event: Event) ->
 
 
 async def create_event_and_schedule(
-    user_id: int,
-    chat_id: int,
-    title: str,
-    when: datetime,
-    store: EventStore,
-    application: Application,
+        user_id: int,
+        chat_id: int,
+        title: str,
+        when: datetime,
+        store: EventStore,
+        application: Application,
 ) -> Event:
     event = Event(
         id=str(uuid.uuid4()),
@@ -288,13 +288,18 @@ async def send_events_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         if event.when < now:
             status = "уже прошло"
         else:
-            days_left = (event.when.date() - now.date()).days
-            if days_left == 0:
-                status = "сегодня"
-            elif days_left == 1:
-                status = "завтра"
+            time_left = event.when - now
+            hours_left = time_left.total_seconds() / 3600
+
+            if hours_left < 24:
+                hours = int(hours_left)
+                status = f"через {hours} ч."
             else:
-                status = f"через {days_left} дней"
+                days_left = (event.when.date() - now.date()).days
+                if days_left == 1:
+                    status = "завтра"
+                else:
+                    status = f"через {days_left} дней"
         lines.append(f"- {event.title} — {event.when.strftime('%Y-%m-%d %H:%M')} ({status})")
 
     await update.message.reply_text("Твои события:\n" + "\n".join(lines), reply_markup=MENU_KEYBOARD)
